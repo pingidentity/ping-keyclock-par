@@ -1,0 +1,13 @@
+Identity Provider ID: external-oidc-par
+Identity Provider display name: External OIDC PAR
+Non-linking authenticator ID: external-idp-par-redirect
+Non-linking authenticator display name: External IdP PAR Redirect
+Account-linking authenticator ID: external-idp-par-redirect-link
+Account-linking authenticator display name: External IdP PAR Redirect (Account Linking)
+Authenticator setting: identity_provider_alias
+Native callback: /realms/{realm}/broker/{alias}/endpoint
+Non-linking callback behavior: validates the OIDC result and resumes the current flow without broker linking
+No FormAction
+No Required Action
+No realm attributes
+No pending user attribute

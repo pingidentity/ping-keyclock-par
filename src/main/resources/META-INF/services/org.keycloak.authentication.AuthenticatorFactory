@@ -1,0 +1,2 @@
+com.pingidentity.keycloak.externalidppar.ExternalIdpParRedirectAuthenticatorFactory
+com.pingidentity.keycloak.externalidppar.ExternalIdpParAccountLinkingAuthenticatorFactory

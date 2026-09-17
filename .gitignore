@@ -1,0 +1,10 @@
+target/
+*.class
+*.jar
+*.zip
+.idea/
+.vscode/
+*.iml
+.env*
+*.pem
+*.key
