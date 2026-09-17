@@ -1,8 +1,8 @@
-# Keycloak External OIDC PAR Redirect Runbook
+# Keycloak External OIDC PAR Redirect
 
 ## Overview
 
-A native Keycloak provider that uses OIDC PAR and signed OIDC request objects to redirect users through PingOne, PingFederate, or other compatible OIDC services. It provides two authenticator modes: use the non-linking authenticator for registration, Universal Services, IDV, or MFA steps that should return to the current Keycloak flow; use the account-linking authenticator only when the external identity should be intentionally linked or brokered into Keycloak.
+A native Keycloak provider that uses OAuth 2.0 Pushed Authorization Requests (PAR) and signed OIDC request objects to redirect users to PingOne, PingFederate, or other compatible OIDC services. It provides two authenticator modes: non-linking authenticator for registration, Universal Services, IDV, or MFA steps that should return to the current Keycloak flow; account-linking authenticator when the external identity should be intentionally linked or brokered into Keycloak.
 
 ## Implementation and Build Requirements
 
