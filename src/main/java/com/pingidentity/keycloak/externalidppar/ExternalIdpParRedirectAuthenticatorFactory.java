@@ -29,10 +29,17 @@ public class ExternalIdpParRedirectAuthenticatorFactory implements Authenticator
     }
     @Override public boolean isUserSetupAllowed() { return false; }
     @Override public String getHelpText() {
-        return "Redirects through an External OIDC PAR provider and resumes the current flow without creating or linking a broker identity.";
+        return "Redirects through an External OIDC PAR provider and resumes the current flow without creating or linking a broker identity. The external identity must match the Keycloak user unless user binding is disabled on the provider.";
     }
     @Override public List<ProviderConfigProperty> getConfigProperties() {
-        return properties();
+        List<ProviderConfigProperty> properties = properties();
+        ProviderConfigProperty acrValues = property(ExternalIdpParConfig.ACR_VALUES,
+            "acr_values for this step", ProviderConfigProperty.STRING_TYPE, "");
+        acrValues.setHelpText("Space-separated acr values this step requests instead of the provider's acr_values, "
+            + "for example email or sms. Blank uses the provider's. Require returned acr to match checks the "
+            + "returned acr against these values.");
+        properties.add(acrValues);
+        return properties;
     }
     static List<ProviderConfigProperty> properties() {
         List<ProviderConfigProperty> properties = new ArrayList<>();

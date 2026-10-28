@@ -28,7 +28,7 @@ public class ExternalIdpParAccountLinkingAuthenticatorFactory implements Authent
     }
     @Override public boolean isUserSetupAllowed() { return false; }
     @Override public String getHelpText() {
-        return "Redirects through an External OIDC PAR provider and returns through Keycloak's native broker callback, allowing first-broker-login and account linking.";
+        return "Redirects through an External OIDC PAR provider and returns through Keycloak's native broker callback, allowing first-broker-login and account linking. This ends the flow as the linked user; it is not a step-up check.";
     }
     @Override public List<ProviderConfigProperty> getConfigProperties() {
         return ExternalIdpParRedirectAuthenticatorFactory.properties();

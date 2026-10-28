@@ -8,3 +8,7 @@ target/
 .env*
 *.pem
 *.key
+.DS_Store
+e2e/
+# Local-only setup notes
+PINGFEDERATE_SETUP.md
