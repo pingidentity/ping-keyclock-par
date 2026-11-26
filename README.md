@@ -18,7 +18,7 @@ Build it in an environment with Java `17`, Maven `3.9+`, and the Keycloak depend
 The `keycloak.version` property in `pom.xml` sets the Keycloak version the provider is compiled against. Keep all three Keycloak dependencies on that same version:
 
 ```xml
-<keycloak.version>26.6.2</keycloak.version>
+<keycloak.version>26.6.4</keycloak.version>
 ```
 
 The current POM uses these versioned dependencies:
@@ -58,7 +58,7 @@ Without a local JDK 17 and Maven, build in a container instead:
 docker run --rm -v "$PWD":/src -v "$HOME/.m2":/root/.m2 -w /src maven:3.9.9-eclipse-temurin-17 mvn -B clean verify
 ```
 
-A JAR built against one Keycloak release normally works on other patch releases of the same minor version, including the Red Hat build of Keycloak. For example, the JAR built against `26.6.2` was checked against Red Hat build of Keycloak `26.6.6.redhat-00001`, and the Keycloak APIs it uses are identical. For a 26.6.x patch release, test the existing JAR on that version rather than rebuilding. Building against a Red Hat version string also requires Red Hat's Maven repository.
+A JAR built against one Keycloak release normally works on other patch releases of the same minor version, including the Red Hat build of Keycloak. For example, the Keycloak APIs the JAR uses are identical in `26.6.2`, `26.6.4`, and Red Hat build of Keycloak `26.6.6.redhat-00001`, and building against `26.6.2` or `26.6.4` produces the same classes. For a 26.6.x patch release, test the existing JAR on that version rather than rebuilding. Building against a Red Hat version string also requires Red Hat's Maven repository.
 
 The provider uses Keycloak SPIs that Keycloak marks as internal, so they can change between minor releases. For a different minor or major version (for example 26.7 or 27), set `keycloak.version` to that version, rebuild, and test it before installing.
 
