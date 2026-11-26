@@ -221,7 +221,7 @@ With **Non-linking user binding** set to `required`, the check is decided as fol
 
 Because an existing link decides who may complete the step, control how links are created:
 
-* **No account-linking step:** close the broker login path as described in [Account-linking flow](#account-linking-flow).
+* **No account-linking step:** close the sign-in route as described in [Closing the sign-in route](#closing-the-sign-in-route).
 * **With an account-linking step:** make sure its first login flow verifies the user strongly before it links an account.
 
 Error log lines name the claim and attribute but never their values.
@@ -318,12 +318,23 @@ Add **External IdP PAR Redirect (Account Linking)** only where the external iden
 
 Otherwise use `External IdP PAR Redirect`.
 
-If no flow uses the account-linking step, close the broker login path for this provider by turning on **Account linking only**. Otherwise anyone can open `/broker/{alias}/login` (or use `kc_idp_hint`) to sign in through the external provider alone, skipping the rest of the Keycloak flow, and create or link a Keycloak account.
+#### Closing the sign-in route
 
-* **What it blocks:** Keycloak refuses both paths for the provider, even for users who already have a link.
-* **The non-linking step keeps working:** it does not go through that path.
-* **Hide on login page is not enough:** it only hides the button. A user who already has a link can still sign in through the external provider alone.
-* **Add a second layer:** set **First login flow override** to a flow that contains only **Deny access**, so the broker can never create or link an account.
+Keycloak can use the identity provider in two ways:
+
+1. **As a step in your flow.** The non-linking step runs after Keycloak has identified the user, for example after the password form. It sends the user to the external provider for MFA, IDV, or Universal Services, and the user comes back into the same flow.
+2. **As a sign-in route.** Like any Keycloak identity provider, it can also sign a user in to Keycloak through the external provider alone. Keycloak skips its own password step and the rest of the flow, and trusts the external provider's login. The account-linking step uses this route on purpose.
+
+The sign-in route stays open even when no flow uses it. Anyone can reach it at `/realms/<realm>/broker/<alias>/login`, or by adding `kc_idp_hint=<alias>` to a login link:
+
+* **Users who already have a link** (a federated identity for this provider on their Keycloak user) are signed straight in through the external provider. They skip the Keycloak password and the rest of the flow.
+* **Users without a link** go through the provider's first login flow, which can create or link a Keycloak account.
+
+If no flow uses the account-linking step, close the route:
+
+* **Turn on Account linking only** on the identity provider. Keycloak then refuses both URLs for this provider, even for users who already have a link. The non-linking step keeps working, because it does not use them.
+* **Hide on login page is not enough.** It only removes the button; the URLs still work.
+* **As a second layer,** set **First login flow override** to a flow that contains only **Deny access**, so the route can never create or link an account.
 
 ### Registration flow
 
