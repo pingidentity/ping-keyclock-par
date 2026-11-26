@@ -81,6 +81,46 @@ class UserBindingTest {
     }
 
     @Test
+    void lookAlikeNamesDoNotMatchIgnoringCase() {
+        // Kelvin sign, long s, dotless i, dotted capital I: each passes String.equalsIgnoreCase.
+        String[][] lookAlikes = {{"Kate", "kate"}, {"ſam", "sam"}, {"alıce", "alice"}, {"alİce", "alice"}};
+        for (String[] pair : lookAlikes) {
+            assertTrue(pair[0].equalsIgnoreCase(pair[1]), "equalsIgnoreCase folds " + pair[0]);
+            assertFalse(ExternalIdpParSupport.equalsIgnoringCase(pair[0], pair[1]), pair[0]);
+        }
+        assertFalse(ExternalIdpParSupport.equalsIgnoringCase("ａlice", "alice"), "fullwidth letters");
+        assertTrue(ExternalIdpParSupport.equalsIgnoringCase("ALICE@Example.COM", "alice@example.com"));
+        assertTrue(ExternalIdpParSupport.equalsIgnoringCase("Ärger", "ärger"), "accented letters still ignore case");
+
+        JsonWebToken token = token("9a1c-uuid");
+        token.setOtherClaims("preferred_username", "alıce");
+        assertThrows(IdentityBrokerException.class, () -> bind(token, null, "preferred_username,sub", "username"));
+    }
+
+    @Test
+    void unverifiedEmailIsRejectedButAMissingFlagIsNot() {
+        JsonWebToken token = token("9a1c-uuid");
+        token.setOtherClaims("email", "alice@example.com");
+        token.setOtherClaims("email_verified", false);
+        IdentityBrokerException e = assertThrows(IdentityBrokerException.class, () -> bind(token, null, "email", "email"));
+        assertTrue(e.getMessage().contains("email_verified"));
+
+        ObjectNode userInfo = JSON.createObjectNode().put("email", "alice@example.com").put("email_verified", false);
+        assertThrows(IdentityBrokerException.class, () -> bind(token("9a1c-uuid"), userInfo, "email", "email"));
+
+        token.setOtherClaims("email_verified", true);
+        assertDoesNotThrow(() -> bind(token, null, "email", "email"));
+        JsonWebToken noFlag = token("9a1c-uuid");
+        noFlag.setOtherClaims("email", "alice@example.com");
+        assertDoesNotThrow(() -> bind(noFlag, null, "email", "email"));
+        // The flag only concerns the email claim.
+        JsonWebToken username = token("9a1c-uuid");
+        username.setOtherClaims("preferred_username", "alice");
+        username.setOtherClaims("email_verified", false);
+        assertDoesNotThrow(() -> bind(username, null, "preferred_username", "username"));
+    }
+
+    @Test
     void userWithoutTheBindingAttributeIsRejected() {
         IdentityBrokerException e = assertThrows(IdentityBrokerException.class,
             () -> bind(token("9a1c-uuid"), null, "sub", "pingone_id"));

@@ -13,12 +13,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -46,7 +48,7 @@ public final class ExternalIdpParSupport {
     public static Map<String, String> authorizationParameters(String redirectUri, String scope,
                                                               String acrValues, String state, String nonce,
                                                               UserModel user, String attributeAllowlist,
-                                                              String codeChallenge) {
+                                                              String codeChallenge, String uiLocales) {
         String username = user == null ? "" : nullToEmpty(user.getUsername());
         Map<String, String> parameters = new LinkedHashMap<>();
         parameters.put("response_type", "code");
@@ -67,6 +69,7 @@ public final class ExternalIdpParSupport {
             if (first != null) parameters.put(ATTRIBUTE_PARAMETER_PREFIX + name, first);
         });
         if (!isBlank(acrValues)) parameters.put("acr_values", acrValues);
+        if (!isBlank(uiLocales)) parameters.put("ui_locales", uiLocales);
         if (!isBlank(codeChallenge)) {
             parameters.put("code_challenge", codeChallenge);
             parameters.put("code_challenge_method", "S256");
@@ -179,8 +182,14 @@ public final class ExternalIdpParSupport {
                 throw new IdentityBrokerException(
                     "External IdP user binding failed: Keycloak user has no value for '" + attribute + "'");
             }
+            // An unverified email is not proof of identity; a missing email_verified is accepted,
+            // because PingFederate often omits it.
+            if ("email".equals(claim) && "false".equalsIgnoreCase(claimValue(idToken, userInfo, "email_verified"))) {
+                throw new IdentityBrokerException(
+                    "External IdP user binding failed: claim 'email' is not verified (email_verified is false)");
+            }
             boolean caseInsensitive = "username".equals(attribute) || "email".equals(attribute);
-            boolean matches = caseInsensitive ? claimValue.equalsIgnoreCase(userValue) : claimValue.equals(userValue);
+            boolean matches = caseInsensitive ? equalsIgnoringCase(claimValue, userValue) : claimValue.equals(userValue);
             if (!matches) {
                 throw new IdentityBrokerException("External IdP user binding failed: claim '" + claim
                     + "' does not match Keycloak user '" + attribute + "'");
@@ -268,6 +277,17 @@ public final class ExternalIdpParSupport {
         Arrays.stream(value.split(Pattern.quote(separator) + "|\\s+"))
             .map(String::trim).filter(s -> !s.isEmpty()).forEach(items::add);
         return items;
+    }
+
+    /**
+     * Case-insensitive match for usernames and emails. String.equalsIgnoreCase folds look-alikes
+     * onto plain ASCII letters (the Kelvin sign onto k, the long s onto s, the Turkish dotless i
+     * onto i), so a look-alike name in the external directory could pass as another user. The
+     * external value must be NFKC-normalized, and whole strings are lowercased and compared.
+     */
+    static boolean equalsIgnoringCase(String claimValue, String userValue) {
+        return Normalizer.isNormalized(claimValue, Normalizer.Form.NFKC)
+            && claimValue.toLowerCase(Locale.ROOT).equals(userValue.toLowerCase(Locale.ROOT));
     }
 
     private static String claimValue(JsonWebToken idToken, JsonNode userInfo, String claim) {

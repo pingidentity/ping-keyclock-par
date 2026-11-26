@@ -33,7 +33,7 @@ class ExternalIdpParSupportTest {
             "https://pf.example.com", "kc-client", SECRET_32, "HS256",
             ExternalIdpParSupport.authorizationParameters(
                 "https://kc.example.com/realms/r/broker/pf/endpoint", "openid profile", "mfa",
-                "state-1", "nonce-1", user, null, "challenge-1")
+                "state-1", "nonce-1", user, null, "challenge-1", null)
         );
 
         String[] parts = jwt.split("\\.");
@@ -68,7 +68,7 @@ class ExternalIdpParSupportTest {
     @Test
     void requestObjectHonorsAttributeAllowlist() throws Exception {
         String jwt = ExternalIdpParSupport.createRequestObject("aud", "client", SECRET_32, "HS256",
-            ExternalIdpParSupport.authorizationParameters("https://cb", "openid", null, "s", "n", user(), "department", null));
+            ExternalIdpParSupport.authorizationParameters("https://cb", "openid", null, "s", "n", user(), "department", null, null));
         JsonNode claims = decode(jwt.split("\\.")[1]);
         assertEquals("Engineering", claims.get("kc_attr_department").asText());
         assertFalse(claims.has("kc_attr_LDAP_ENTRY_DN"));
@@ -77,7 +77,7 @@ class ExternalIdpParSupportTest {
     @Test
     void requestObjectWithoutUserOmitsLoginHintAndSendsEmptyStandardClaims() throws Exception {
         String jwt = ExternalIdpParSupport.createRequestObject("aud", "client", SECRET_64, "HS512",
-            ExternalIdpParSupport.authorizationParameters("https://cb", "openid", null, "s", "n", null, "*", null));
+            ExternalIdpParSupport.authorizationParameters("https://cb", "openid", null, "s", "n", null, "*", null, null));
         String[] parts = jwt.split("\\.");
         JsonNode claims = decode(parts[1]);
         assertEquals("HS512", decode(parts[0]).get("alg").asText());
@@ -92,7 +92,7 @@ class ExternalIdpParSupportTest {
     @Test
     void rejectsShortSecretsAndUnsupportedAlgorithms() {
         Map<String, String> parameters = ExternalIdpParSupport.authorizationParameters(
-            "https://cb", "openid", null, "s", "n", null, null, null);
+            "https://cb", "openid", null, "s", "n", null, null, null, null);
         assertThrows(IllegalArgumentException.class,
             () -> ExternalIdpParSupport.createRequestObject("aud", "client", "short", "HS256", parameters));
         assertThrows(IllegalArgumentException.class,
@@ -107,7 +107,7 @@ class ExternalIdpParSupportTest {
     void plainParametersCarryTheWholeRequestWithoutARequestObject() throws Exception {
         Map<String, String> form = ExternalIdpParSupport.parFormParameters(
             ExternalIdpParSupport.authorizationParameters("https://cb", "openid profile", "mfa",
-                "state-1", "nonce-1", user(), "department", "challenge-1"), null);
+                "state-1", "nonce-1", user(), "department", "challenge-1", null), null);
 
         assertFalse(form.containsKey("request"));
         assertFalse(form.containsKey("client_id"), "client_id is added by the client-authentication step");
@@ -144,7 +144,7 @@ class ExternalIdpParSupportTest {
         when(user.getAttributes()).thenReturn(attributes);
 
         Map<String, String> parameters = ExternalIdpParSupport.authorizationParameters(
-            "https://cb", "openid", null, "s", "n", user, "sms,email,empty", null);
+            "https://cb", "openid", null, "s", "n", user, "sms,email,empty", null, null);
 
         assertEquals("+15550100", parameters.get("kc_attr_sms"));
         assertEquals("alice@example.com", parameters.get("kc_attr_email"));
@@ -157,11 +157,28 @@ class ExternalIdpParSupportTest {
     void signedFormRepeatsOnlyTheCoreParametersOutsideTheRequestObject() throws Exception {
         Map<String, String> form = ExternalIdpParSupport.parFormParameters(
             ExternalIdpParSupport.authorizationParameters("https://cb", "openid", "mfa",
-                "state-1", "nonce-1", user(), "*", "challenge-1"), "signed.request.object");
+                "state-1", "nonce-1", user(), "*", "challenge-1", "fr-CA"), "signed.request.object");
 
         assertEquals(List.of("response_type", "redirect_uri", "scope", "state", "login_hint", "acr_values",
             "code_challenge", "code_challenge_method", "request"), List.copyOf(form.keySet()));
         assertEquals("signed.request.object", form.get("request"));
+    }
+
+    @Test
+    void uiLocalesIsSentOnlyWhenALocaleIsPassed() throws Exception {
+        Map<String, String> parameters = ExternalIdpParSupport.authorizationParameters(
+            "https://cb", "openid", null, "s", "n", user(), null, null, "fr-CA");
+        assertEquals("fr-CA", parameters.get("ui_locales"));
+        assertEquals("fr-CA", ExternalIdpParSupport.parFormParameters(parameters, null).get("ui_locales"),
+            "plain-parameters sends it as a PAR parameter");
+        String jwt = ExternalIdpParSupport.createRequestObject("aud", "client", SECRET_32, "HS256", parameters);
+        assertEquals("fr-CA", decode(jwt.split("\\.")[1]).get("ui_locales").asText(),
+            "signed-request-object carries it inside the request object");
+
+        for (String off : new String[] {null, " "}) {
+            assertFalse(ExternalIdpParSupport.authorizationParameters(
+                "https://cb", "openid", null, "s", "n", user(), null, null, off).containsKey("ui_locales"));
+        }
     }
 
     @Test

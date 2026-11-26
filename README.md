@@ -174,6 +174,7 @@ Configure the OIDC fields from the external provider's discovery document:
 | OAuth client secret | The matching client secret. Vault references (`${vault.key}`) are supported. With the `signed-request-object` format, the secret is also the HMAC key for the request object, so it is required even when client authentication uses `private_key_jwt`. |
 | Client authentication | Used for both the PAR request and the token request: `client_secret_basic`, `client_secret_post`, `client_secret_jwt`, or `private_key_jwt`. |
 | Default scopes | Blank sends `openid profile email`. When set, exactly these scopes plus `openid` are sent. PingFederate rejects scopes a client is not allowed to request (`invalid_scope`). |
+| Pass current locale | Default off, under **Advanced**. When on, the PAR request carries `ui_locales` so the external provider shows its pages in the user's language. See [Language (`ui_locales`)](#language-ui_locales). |
 
 Configure the custom PAR fields:
 
@@ -184,7 +185,7 @@ Configure the custom PAR fields:
 | PAR request format | `signed-request-object` (default): the parameters go in a request object signed with the client secret, and the core parameters are repeated outside it. Use this for PingOne. `plain-parameters`: the same parameters are sent directly in the client-authenticated PAR request, with no request object. Use this for PingFederate, which only accepts RSA- or EC-signed request objects. See [PAR Claims](#par-claims). |
 | Request-object signing algorithm | `HS256` (default), `HS384`, or `HS512`, matching the external client policy. Ignored for `plain-parameters`. |
 | PKCE mode | `required-S256` (default) or `disabled`. Use `disabled` only when the external client cannot support PKCE. |
-| `acr_values` | Space-separated `acr` values to request, such as the external MFA policy. A non-linking step can request its own values instead; see [Choosing the MFA method per user](#choosing-the-mfa-method-per-user). |
+| `acr_values` | Space-separated `acr` values to request, such as the external MFA policy. A non-linking step can request its own values instead; see [Choosing the MFA method per user](#choosing-the-mfa-method-per-user). Leave it blank only if the external client always requires MFA: blank requests and checks no `acr`, so any successful external login completes the step. |
 | Require returned acr to match acr_values | Default on. When `acr_values` is set, ID tokens whose `acr` is not one of the requested values are rejected, on both the non-linking and the account-linking paths. When a step sets its own `acr_values`, the returned `acr` must be one of the step's values. |
 | PAR user-attribute allowlist (comma-separated) | Controls which raw user attributes are sent as `kc_attr_<name>` parameters: blank sends **none**, `*` sends all, a list sends only the listed names. The standard `kc_*` claims are always sent. |
 | Non-linking user binding | `required` (default) or `disabled`. See [User binding](#user-binding). |
@@ -210,6 +211,16 @@ With **Non-linking user binding** set to `required`, the check is decided as fol
 1. **The Keycloak user already has a federated link for this provider alias.** The ID token `sub` must equal the linked external user ID.
 2. **There is no link.** The first configured claim that is present (ID token first, then UserInfo) must equal the configured Keycloak value. If the first present claim does not match, the step fails. It does not fall through to the next claim.
 3. **No Keycloak user is established when the step runs.** The step fails. Set binding to `disabled` only for steps that run before a user exists, such as IDV before registration completes. With binding disabled, the step proves only that someone completed the external flow.
+
+`username` and `email` comparisons ignore case, and nothing else:
+
+* **Look-alike characters never match.** An external value with compatibility characters, such as the Kelvin sign (U+212A) or fullwidth letters, fails. So do the Turkish dotless i (U+0131) and dotted capital I (U+0130). A look-alike name in the external directory can't pass as another user.
+* **Unverified email fails.** An `email` claim fails the check when the provider says `email_verified` is `false`. A missing `email_verified` is accepted, because PingFederate often omits it.
+
+Because an existing link decides who may complete the step, control how links are created:
+
+* **No account-linking step:** close the broker login path as described in [Account-linking flow](#account-linking-flow).
+* **With an account-linking step:** make sure its first login flow verifies the user strongly before it links an account.
 
 Error log lines name the claim and attribute but never their values.
 
@@ -238,6 +249,7 @@ PingFederate OAuth client settings:
 * **`acr`:** when `acr_values` is set, use a Requested AuthN Context Authentication Selector (or equivalent policy) so the ID token's `acr` is one of the requested values. Give the selector one result value per method that Keycloak steps request (for example `email` and `sms`), matching exactly and case-sensitively, and leave **Add or Update AuthN Context Attribute** and **Override AuthN Context for Flow** selected so the result becomes the ID token's `acr`. If no selector value matches, PingFederate moves on to its next policy, which may be weaker; the provider then rejects the result because `acr` does not match. Put this policy first.
 * **Access token manager:** any. Reference (opaque) and JWT access tokens both work, because the provider does not validate the access token.
 * **TLS:** if PingFederate's certificate comes from a private CA, add it to Keycloak's truststore.
+* **Language:** with Keycloak's **Pass current locale** on, PingFederate receives `ui_locales` through PAR. Each language needs a PingFederate language pack, a translated copy of `pingfederate-messages.properties` such as `pingfederate-messages_fr.properties`; otherwise PingFederate uses its default language.
 
 PingFederate returns `201 Created` from the PAR endpoint, and the provider redirects immediately with only `client_id` and `request_uri` on the front channel.
 
@@ -292,6 +304,7 @@ In each condition, **Attribute name** is `sms` and **Expected attribute value** 
 
 * Make the two conditions exact opposites, so that every user runs exactly one MFA step.
 * Both steps use the same provider alias, external client, redirect URI, and secret.
+* Also set the provider's own `acr_values` to an MFA value, such as `email`. It covers any step without its own value, so no step runs without an MFA request.
 * With **Require returned acr to match acr_values** on, a step accepts only its own value: if the SMS step's ID token comes back with `acr` `email`, the step fails.
 * If the attribute that picks the method also holds the phone number, let only administrators edit it in the user profile. It decides where codes are sent.
 
@@ -303,7 +316,12 @@ Add **External IdP PAR Redirect (Account Linking)** only where the external iden
 
 Otherwise use `External IdP PAR Redirect`.
 
-If no flow uses the account-linking step, close the broker login path for this provider. Turn on **Hide on login page**, and set **First login flow override** to a flow that contains only **Deny access**. Otherwise anyone can open `/broker/{alias}/login` (or use `kc_idp_hint`) to sign in through the external provider and create or link a Keycloak account. The non-linking step never enters the first login flow, so it is unaffected.
+If no flow uses the account-linking step, close the broker login path for this provider by turning on **Account linking only**. Otherwise anyone can open `/broker/{alias}/login` (or use `kc_idp_hint`) to sign in through the external provider alone, skipping the rest of the Keycloak flow, and create or link a Keycloak account.
+
+* **What it blocks:** Keycloak refuses both paths for the provider, even for users who already have a link.
+* **The non-linking step keeps working:** it does not go through that path.
+* **Hide on login page is not enough:** it only hides the button. A user who already has a link can still sign in through the external provider alone.
+* **Add a second layer:** set **First login flow override** to a flow that contains only **Deny access**, so the broker can never create or link an account.
 
 ### Registration flow
 
@@ -349,6 +367,21 @@ PAR user-attribute allowlist: department,employeeNumber,costCenter
 In both formats the request travels only over the back channel (the PAR request), and the browser sees only `client_id` and `request_uri`. The request object is signed, not encrypted.
 
 A request object also carries `iss` (client ID), `aud`, `iat`, `nbf`, `exp` (5 minutes), and a unique `jti`.
+
+#### Language (`ui_locales`)
+
+With the provider's **Pass current locale** switch on, the request also carries the standard OIDC `ui_locales` parameter, such as `fr` or `fr-CA`. With `signed-request-object` it is only inside the request object. The value is the language Keycloak would show its own pages in, chosen in this order:
+
+1. A language picked from the login page's language menu during this login
+2. The user's saved `locale` attribute
+3. The client application's own `ui_locales` in its request to Keycloak
+4. The Keycloak locale cookie
+5. The browser's `Accept-Language` header
+6. The realm's default locale, then English
+
+Only languages in the realm's **Supported locales** count. With **Internationalization** off in the realm's localization settings, the value is always `en`.
+
+The user's saved language (step 2) counts whenever Keycloak already knows the user: on the non-linking step, and on the account-linking step when an earlier step signed the user in. The identity-provider button runs before sign-in, so there, as with Keycloak's built-in OIDC broker, it does not.
 
 ### PKCE behavior
 
@@ -432,11 +465,13 @@ Unit tests cover:
 * request-object claims and HMAC signatures
 * plain PAR parameters
 * the attribute allowlist
+* `ui_locales`
 * PKCE
 * `request_uri` parsing
 * log sanitizing
 * `acr` enforcement, including per-step `acr_values`
-* user binding
+* user binding, including look-alike names and `email_verified`
+* the account-linking step's error page
 
 They run with `mvn verify`.
 

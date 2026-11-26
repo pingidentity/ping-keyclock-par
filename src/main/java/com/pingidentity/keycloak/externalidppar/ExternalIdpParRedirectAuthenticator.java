@@ -166,7 +166,11 @@ public class ExternalIdpParRedirectAuthenticator implements Authenticator {
 
     @Override
     public void action(AuthenticationFlowContext context) {
-        if (accountLinking) return;
+        if (accountLinking) {
+            // The broker callback never posts back to this step; a stray post gets the error page.
+            fail(context);
+            return;
+        }
         AuthenticationSessionModel authSession = context.getAuthenticationSession();
         try {
             UserModel user = context.getUser();

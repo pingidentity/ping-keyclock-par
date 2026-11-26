@@ -117,9 +117,12 @@ public class ExternalOidcParIdentityProvider extends OIDCIdentityProvider {
             authSession.removeAuthNote(ExternalIdpParConfig.PKCE_VERIFIER_NOTE);
         }
 
+        // Keycloak's "Pass current locale" switch. Unlike the built-in broker, a step that runs after
+        // sign-in passes the user, so the user's saved locale counts as it does on Keycloak's own pages.
+        String uiLocales = config.isUiLocales() ? session.getContext().resolveLocale(user).toLanguageTag() : null;
         Map<String, String> parameters = ExternalIdpParSupport.authorizationParameters(
             redirectUri, requestedScope(), acrValues, state, nonce, user,
-            value(ExternalIdpParConfig.PAR_USER_ATTRIBUTE_ALLOWLIST, null), challenge
+            value(ExternalIdpParConfig.PAR_USER_ATTRIBUTE_ALLOWLIST, null), challenge, uiLocales
         );
         String requestJwt = null;
         if (signedRequestObject) {
