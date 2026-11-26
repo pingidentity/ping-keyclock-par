@@ -443,6 +443,8 @@ ERROR Failed to create external IdP PAR request: External IdP PAR returned HTTP 
 ERROR External IdP PAR non-linking handoff failed: Validate signatures must be enabled for External OIDC PAR
 ```
 
+`returned acr <none>` means the ID token carried no `acr` claim at all. With PingFederate, that usually means the authentication policy has no Requested AuthN Context selector, or the selector's **Add or Update AuthN Context Attribute** and **Override AuthN Context for Flow** options are off, so PingFederate never set an authentication context. See [PingFederate](#pingfederate).
+
 Missing values are logged as `<none>`. Control characters (including CR, LF, tab, and ESC), Unicode format characters, and line or paragraph separators are replaced with spaces. Each value is truncated to 512 characters plus `...` when necessary. The provider never logs authorization codes, tokens, `state`, `request_uri`, secrets, or user-binding claim values.
 
 Use these commands to inspect the Keycloak container logs:
