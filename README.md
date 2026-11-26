@@ -119,16 +119,18 @@ mvn clean package
 The expected provider JAR is:
 
 ```text
-target/keycloak-external-idp-par-1.0.0.jar
+target/keycloak-external-idp-par-1.1.0.jar
 ```
+
+Both install methods below first remove any earlier version of the provider JAR. Keep only one version in the providers directory: two versions register the same provider IDs.
 
 ### Docker installation
 
 Install the JAR in the Keycloak providers directory and rebuild the optimized server:
 
 ```bash
-docker exec keycloak rm -f /opt/keycloak/providers/keycloak-external-idp-par-1.0.0.jar
-docker cp target/keycloak-external-idp-par-1.0.0.jar keycloak:/opt/keycloak/providers/
+docker exec keycloak find /opt/keycloak/providers -name 'keycloak-external-idp-par-*.jar' -delete
+docker cp target/keycloak-external-idp-par-1.1.0.jar keycloak:/opt/keycloak/providers/
 docker exec keycloak /opt/keycloak/bin/kc.sh build
 docker restart keycloak
 ```
@@ -141,8 +143,8 @@ For a VM, bare-metal, or service installation, copy the provider JAR into the lo
 
 ```bash
 export KEYCLOAK_HOME=/opt/keycloak
-rm -f "$KEYCLOAK_HOME/providers/keycloak-external-idp-par-1.0.0.jar"
-cp target/keycloak-external-idp-par-1.0.0.jar "$KEYCLOAK_HOME/providers/"
+find "$KEYCLOAK_HOME/providers" -name 'keycloak-external-idp-par-*.jar' -delete
+cp target/keycloak-external-idp-par-1.1.0.jar "$KEYCLOAK_HOME/providers/"
 "$KEYCLOAK_HOME/bin/kc.sh" build
 sudo systemctl restart keycloak
 ```
